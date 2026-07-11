@@ -9,8 +9,9 @@ are the LoRAs most likely to lose meaningful visual fidelity after stripping.
 Features:
   * Recursively scans the given folder AND all sub-folders for .safetensors.
   * Asks UPFRONT (right after the scan path is provided) whether to move the
-    original files out, and if yes, where. The destination is asked once and
-    remembered for the whole run.
+    _STRIPPED output files out to another folder, and if yes, where. The
+    destination is asked once and remembered for the whole run. The ORIGINAL
+    files always stay where they are.
   * For each .safetensors that gets stripped:
       - writes <name>_stripped.safetensors
       - if <name>.jpeg (or .jpg/.png/.webp/...) exists next to the original,
@@ -18,9 +19,10 @@ Features:
       - if <name>.metadata.json exists, copies it to <name>_stripped.metadata.json
         and patches file_name / file_path / preview_url / size / sha256 in place.
         If absent -> silently skipped.
-      - THEN, if the user opted in, moves the ORIGINAL .safetensors + (optional)
-        .jpeg + .metadata.json into the destination folder, preserving the
-        relative sub-folder structure. The _stripped copies stay in place.
+      - THEN, if the user opted in, moves the _STRIPPED .safetensors +
+        (optional) _stripped.jpeg + _stripped.metadata.json into the destination
+        folder, preserving the relative sub-folder structure. The ORIGINAL
+        .safetensors / .jpeg / .metadata.json stay in place.
   * Robust against folder paths that contain spaces or quotes -- both the
     .bat launcher and this script strip quotes from user input.
 
@@ -216,69 +218,86 @@ def update_metadata_json(orig_metadata_path,
 
 
 # ---------------------------------------------------------------------------
-# Move-originals step (per-file)
+# Move-stripped-outputs step (per-file)
 # ---------------------------------------------------------------------------
 
-def move_one_original(safetensors_path,
-                      metadata_path,
-                      image_path,
-                      dest_base,
-                      base_folder):
+def move_stripped_outputs(original_safetensors_path,
+                          stripped_safetensors_path,
+                          stripped_metadata_path,
+                          stripped_image_path,
+                          dest_base,
+                          base_folder):
     """
-    Move a single original .safetensors + (optional) .metadata.json +
-    (optional) preview image into dest_base, preserving the relative
-    sub-folder structure under base_folder.
+    Move a single file's _stripped outputs (the new .safetensors + optional
+    _stripped.metadata.json + optional _stripped.jpeg) into dest_base,
+    preserving the relative sub-folder structure that the ORIGINAL file had
+    under base_folder. The original files stay where they are.
+
+    Args:
+      original_safetensors_path : Path to the ORIGINAL .safetensors. Used only
+                                  to compute the destination sub-folder.
+      stripped_safetensors_path : Path to the _stripped.safetensors that was
+                                  just written. This file gets moved.
+      stripped_metadata_path    : Path to the _stripped.metadata.json that was
+                                  just written, or None if no metadata was
+                                  created (original had no .metadata.json).
+      stripped_image_path       : Path to the _stripped.<img ext> that was
+                                  just written, or None if no preview image
+                                  was copied (original had no .jpeg etc.).
+      dest_base                 : Destination folder (already exists).
+      base_folder               : The scan root, used to compute the relative
+                                  sub-folder path.
 
     Returns (moved_safetensors_count, moved_sidecar_count, errors_list).
-    Either of metadata_path / image_path may be None -- in that case the
-    sidecar is silently skipped (it never existed).
     """
     moved_st = 0
     moved_sc = 0
     errors = []
 
-    # Resolve the destination sub-folder (preserve relative path under base_folder).
+    # Resolve the destination sub-folder based on the ORIGINAL file's
+    # relative path under base_folder. The stripped file lands in the
+    # same sub-folder the original lived in, just under dest_base.
     try:
-        rel = safetensors_path.relative_to(base_folder)
+        rel = original_safetensors_path.relative_to(base_folder)
         dest_dir = dest_base / rel.parent
     except ValueError:
         dest_dir = dest_base
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    # Move .safetensors
+    # Move _stripped.safetensors
     try:
-        dest_st = dest_dir / safetensors_path.name
+        dest_st = dest_dir / stripped_safetensors_path.name
         if dest_st.exists():
-            errors.append(f"{safetensors_path}: destination already exists ({dest_st})")
+            errors.append(f"{stripped_safetensors_path}: destination already exists ({dest_st})")
         else:
-            shutil.move(str(safetensors_path), str(dest_st))
+            shutil.move(str(stripped_safetensors_path), str(dest_st))
             moved_st += 1
     except Exception as e:
-        errors.append(f"{safetensors_path}: {e}")
+        errors.append(f"{stripped_safetensors_path}: {e}")
 
-    # Move .metadata.json (if exists)
-    if metadata_path and metadata_path.exists():
+    # Move _stripped.metadata.json (if it was created)
+    if stripped_metadata_path and stripped_metadata_path.exists():
         try:
-            dest_meta = dest_dir / metadata_path.name
+            dest_meta = dest_dir / stripped_metadata_path.name
             if dest_meta.exists():
-                errors.append(f"{metadata_path}: destination already exists ({dest_meta})")
+                errors.append(f"{stripped_metadata_path}: destination already exists ({dest_meta})")
             else:
-                shutil.move(str(metadata_path), str(dest_meta))
+                shutil.move(str(stripped_metadata_path), str(dest_meta))
                 moved_sc += 1
         except Exception as e:
-            errors.append(f"{metadata_path}: {e}")
+            errors.append(f"{stripped_metadata_path}: {e}")
 
-    # Move preview image (if exists)
-    if image_path and image_path.exists():
+    # Move _stripped.<image ext> (if it was created)
+    if stripped_image_path and stripped_image_path.exists():
         try:
-            dest_img = dest_dir / image_path.name
+            dest_img = dest_dir / stripped_image_path.name
             if dest_img.exists():
-                errors.append(f"{image_path}: destination already exists ({dest_img})")
+                errors.append(f"{stripped_image_path}: destination already exists ({dest_img})")
             else:
-                shutil.move(str(image_path), str(dest_img))
+                shutil.move(str(stripped_image_path), str(dest_img))
                 moved_sc += 1
         except Exception as e:
-            errors.append(f"{image_path}: {e}")
+            errors.append(f"{stripped_image_path}: {e}")
 
     return moved_st, moved_sc, errors
 
@@ -322,30 +341,33 @@ def strip_surrounding_quotes(s):
 
 def ask_move_destination(scan_folder):
     """
-    Ask the user UPFRONT whether they want to move the original files out
-    after each strip+copy+patch completes. If yes, ask for the destination
-    folder and validate it (must exist or be creatable, must not equal the
-    scan folder).
+    Ask the user UPFRONT whether they want to move the _STRIPPED output files
+    out to another folder after each strip+copy+patch completes. If yes, ask
+    for the destination folder and validate it (must exist or be creatable,
+    must not equal the scan folder).
+
+    The ORIGINAL files always stay in place; only the _stripped.safetensors
+    (+ optional _stripped.jpeg + _stripped.metadata.json) get moved.
 
     Returns:
-      Path  -> destination folder to move originals into
-      None  -> user declined; originals stay in place
+      Path  -> destination folder to move _stripped outputs into
+      None  -> user declined; _stripped outputs stay next to originals
     """
     try:
-        ans = input("Move the original files to another folder after stripping? (y/n): ").strip().lower()
+        ans = input("Move the _stripped output files to another folder after stripping? (y/n): ").strip().lower()
     except EOFError:
-        print("\nNo input received -- keeping originals in place.")
+        print("\nNo input received -- _stripped outputs stay next to originals.")
         return None
 
     if ans not in ('y', 'yes'):
-        print("Keeping originals in place.")
+        print("_Stripped outputs will stay next to the originals.")
         return None
 
     while True:
         try:
             dest = input("Enter destination folder path: ").strip()
         except EOFError:
-            print("\nNo input received -- keeping originals in place.")
+            print("\nNo input received -- _stripped outputs stay next to originals.")
             return None
 
         dest = strip_surrounding_quotes(dest)
@@ -398,21 +420,22 @@ def main():
 
     # ----------------------- Ask move destination UPFRONT -----------------------
     # The question is asked before any stripping happens, so the user knows
-    # up-front whether originals will be relocated. The actual move happens
-    # per-file, immediately after that file's _stripped outputs are written.
+    # up-front whether the _stripped outputs will be relocated. The actual
+    # move happens per-file, immediately after that file's _stripped outputs
+    # are written. The ORIGINAL files always stay where they are.
     print()
     print("=" * 70)
-    print("MOVE ORIGINALS?")
+    print("MOVE _STRIPPED OUTPUTS?")
     print("=" * 70)
     print("If yes, after each file's _stripped.safetensors (+ optional")
-    print("_stripped.metadata.json + _stripped.jpeg) is written, the ORIGINAL")
-    print(".safetensors (+ optional .jpeg + .metadata.json) will be moved into")
-    print("the destination folder, preserving the sub-folder structure.")
-    print("The _stripped copies stay where they are.")
+    print("_stripped.metadata.json + _stripped.jpeg) is written, those _STRIPPED")
+    print("files will be moved into the destination folder, preserving the")
+    print("sub-folder structure. The ORIGINAL .safetensors / .jpeg / .metadata.json")
+    print("always stay where they are.")
     print()
     move_dest = ask_move_destination(lora_dir)
     if move_dest is not None:
-        print(f"\nOriginals will be moved to: {move_dest}")
+        print(f"\n_Stripped outputs will be moved to: {move_dest}")
     print()
 
     # ----------------------- Process each file -----------------------
@@ -466,7 +489,12 @@ def main():
 
         # ---- Copy + patch sidecar files (.jpeg preview + .metadata.json) ----
         # Missing sidecars are perfectly normal -- we silently skip them.
+        # We remember the paths of the _stripped sidecar files we created so
+        # we can move them (along with the _stripped.safetensors) if the user
+        # opted in to the move step.
         metadata_path, image_path = find_associated_files(f)
+        new_image_path = None
+        new_metadata_path = None
 
         if image_path:
             new_image_path = image_path.parent / f"{f.stem}{OUTPUT_SUFFIX}{image_path.suffix}"
@@ -475,6 +503,7 @@ def main():
                 print(f"  -> Copied preview image: {new_image_path.name}")
             except Exception as e:
                 print(f"  -> [WARN] Could not copy preview image: {e}")
+                new_image_path = None  # don't try to move a file that wasn't created
         # else: no preview image -> silently skipped
 
         if metadata_path:
@@ -485,14 +514,19 @@ def main():
                 print(f"     size={os.path.getsize(out_path)}  sha256={compute_sha256(out_path)[:16]}...")
             except Exception as e:
                 print(f"  -> [WARN] Could not patch metadata: {e}")
+                new_metadata_path = None  # don't try to move a file that wasn't created
         # else: no metadata.json -> silently skipped
 
-        # ---- Move the ORIGINAL files now (per-file, right after strip+copy) ----
+        # ---- Move the _STRIPPED outputs now (per-file, right after they're written) ----
+        # The ORIGINAL files stay where they are; only the _stripped.safetensors
+        # (+ _stripped.jpeg / _stripped.metadata.json if they were created) get
+        # moved into the destination folder, preserving sub-folder structure.
         if move_dest is not None:
-            moved_st, moved_sc, errors = move_one_original(
-                safetensors_path=f,
-                metadata_path=metadata_path,
-                image_path=image_path,
+            moved_st, moved_sc, errors = move_stripped_outputs(
+                original_safetensors_path=f,
+                stripped_safetensors_path=out_path,
+                stripped_metadata_path=new_metadata_path,
+                stripped_image_path=new_image_path,
                 dest_base=move_dest,
                 base_folder=lora_dir,
             )
@@ -504,7 +538,7 @@ def main():
                     print(f"  -> [WARN] move error: {e}")
             else:
                 side = f" (+ {moved_sc} sidecar file(s))" if moved_sc else ""
-                print(f"  -> Moved original(s) to: {move_dest}{side}")
+                print(f"  -> Moved _stripped output(s) to: {move_dest}{side}")
 
         print()
 
@@ -548,8 +582,9 @@ def main():
         print("MOVE SUMMARY")
         print("=" * 70)
         print(f"Destination: {move_dest}")
-        print(f"Moved {total_moved_st} original .safetensors file(s) and "
-              f"{total_moved_sc} sidecar file(s) (jpeg + metadata.json).")
+        print(f"Moved {total_moved_st} _stripped.safetensors file(s) and "
+              f"{total_moved_sc} _stripped sidecar file(s) (jpeg + metadata.json).")
+        print("Originals were left in place.")
         if move_errors:
             print(f"Errors encountered ({len(move_errors)}):")
             for e in move_errors:

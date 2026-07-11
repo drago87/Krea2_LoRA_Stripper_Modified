@@ -13,10 +13,11 @@ echo *_stripped.metadata.json and a copied *_stripped.jpeg preview.
 echo Missing .jpeg / .metadata.json sidecars are silently skipped.
 echo.
 echo Right after you provide the folder path, you'll be asked whether to
-echo MOVE the original files out to another folder. If yes, after each
-echo file's _stripped outputs are written, the original .safetensors
-echo (+ optional .jpeg + .metadata.json) is moved into the destination
-echo folder, preserving sub-folder structure.
+echo MOVE the _STRIPPED output files to another folder. If yes, after each
+echo file's _stripped outputs are written, the _stripped.safetensors
+echo (+ optional _stripped.jpeg + _stripped.metadata.json) is moved into
+echo the destination folder, preserving sub-folder structure. The ORIGINAL
+echo files always stay where they are.
 echo.
 
 set "LORA_PATH="
