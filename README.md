@@ -1,7 +1,11 @@
 Everything in the readme is from the original [github](https://github.com/Winnougan/Krea2_LoRA_Stripper) except for
+
 [Credit where it's due:](README.md#credit-where-its-due)
+
 [What is modified](README.md#what-is-modified)
+
 [Added functionality](README.md#added-functionality)
+
 # Krea2 LoRA Stripper-Modified
 <img width="2666" height="2000" alt="Sample_01" src="https://github.com/user-attachments/assets/d12908b4-5b51-44af-8c83-d4d693f0294c" />
 <img width="2666" height="2000" alt="Sample_03" src="https://github.com/user-attachments/assets/4cc066f5-f098-44c7-b32d-5ce0c141b24b" />
