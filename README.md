@@ -34,7 +34,7 @@ Fixed a bug where where if the folder had spaces it would fail.
 
 #### Added functionality
 
-- It will now ask if you want to move the original file after converting it and ask for the folder you want it moved to.
+- It will now ask if you want to move the created files after converting it and ask for the folder you want it moved to. (changed from moving the original files)
 - It will now check all sub-folders
 - It now have support for [ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) copying the files and modify them so that the new files are linked correctly to the correct file on civitai
 
