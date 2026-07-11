@@ -1,10 +1,8 @@
 Everything in the readme is from the original [github](https://github.com/Winnougan/Krea2_LoRA_Stripper) except for
 
-[Credit where it's due:](README.md#credit-where-its-due)
-
-[What is modified](README.md#what-is-modified)
-
-[Added functionality](README.md#added-functionality)
+- [Credit where it's due:](README.md#credit-where-its-due)
+- [What is modified](README.md#what-is-modified)
+- [Added functionality](README.md#added-functionality)
 
 # Krea2 LoRA Stripper-Modified
 <img width="2666" height="2000" alt="Sample_01" src="https://github.com/user-attachments/assets/d12908b4-5b51-44af-8c83-d4d693f0294c" />
@@ -36,9 +34,10 @@ Fixed a bug where where if the folder had spaces it would fail.
 
 #### Added functionality
 
-It will now ask if you want to move the original file after converting it and ask for the folder you want it moved to.
-It will now check all sub-folders
-It now have support for [ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) copying the files and modify them so that the new files are linked correctly to the correct file on civitai
+- It will now ask if you want to move the original file after converting it and ask for the folder you want it moved to.
+- It will now check all sub-folders
+- It now have support for [ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager) copying the files and modify them so that the new files are linked correctly to the correct file on civitai
+
 ## How it works
 
 Krea2 LoRA `.safetensors` files store weights under two broad key groups:
